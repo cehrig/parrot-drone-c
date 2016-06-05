@@ -6,7 +6,7 @@
 #define DRONE_CONNECT_DRONEBTADAPTER_H
 
 #define BT_MAX_DISCOVERY_DEVICES 255
-#define BT_MAX_REPORT_EVENTS 20
+#define BT_MAX_REPORT_EVENTS 10
 #define BT_DEVICEADDR "00:15:83:D2:31:7F"
 
 #include <bluetooth/bluetooth.h>
@@ -17,6 +17,7 @@ typedef struct _btDevice
 {
     bdaddr_t addr;
     char * name;
+    char * hname;
 } btDevice_t;
 
 typedef struct _btParam
@@ -39,7 +40,11 @@ void initBTDriver();
 void startBTHost();
 void stopBTHost();
 void cleanBTHost(btDeviceTable_t);
+
 static int getBTDevices(btDeviceTable_t);
-int deviceAdd(btDeviceTable_t, bdaddr_t);
+void selectBTDevice(btDeviceTable_t);
+
+int deviceAdd(btDeviceTable_t, bdaddr_t, char *);
+void deviceList(btDeviceTable_t);
 
 #endif //DRONE_CONNECT_DRONEBTADAPTER_H

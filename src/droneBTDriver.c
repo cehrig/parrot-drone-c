@@ -34,6 +34,8 @@ void initBTDriver()
         exit(303);
     }
 
+    selectBTDevice(devices);
+
     cleanBTHost(devices);
 }
 
@@ -117,6 +119,8 @@ static int getBTDevices(btDeviceTable_t devices)
         evt_le_meta_event *meta;
         le_advertising_info *info;
         char addr[18];
+        char hname[248];
+        memset(hname, 0, 248);
 
         while ((len = read(bte_params.dd, buf, sizeof(buf))) < 0) {
             if (errno == EAGAIN || errno == EINTR)
@@ -133,11 +137,15 @@ static int getBTDevices(btDeviceTable_t devices)
         info = (le_advertising_info *) (meta->data + 1);
         ba2str(&info->bdaddr, addr);
 
+        if (hci_read_remote_name(bte_params.dd, &info->bdaddr, sizeof(hname),
+                                 hname, 0) < 0)
+            strcpy(hname, "[unknown]");
+
         if(deviceExists(devices, info->bdaddr)) {
             continue;
         }
 
-        if(!deviceAdd(devices, info->bdaddr)) {
+        if(!deviceAdd(devices, info->bdaddr, hname)) {
             writelog(LOG_ERROR, "Can not add device, exiting");
             exit(305);
         }
@@ -152,6 +160,19 @@ static int getBTDevices(btDeviceTable_t devices)
         return -1;
 
     return 0;
+}
+
+void selectBTDevice(btDeviceTable_t devices)
+{
+    char deviceID[4];
+    int ideviceId;
+
+    writelog(LOG_DEFAULT, "Choose Device ID to pair with device:");
+    deviceList(devices);
+
+    memset(deviceID, 0, 4);
+    scanf("%s", deviceID);
+    ideviceId = strtol(deviceID, NULL, 10)-1;
 }
 
 int deviceExists(btDeviceTable_t devices, bdaddr_t bdaddr)
@@ -169,7 +190,7 @@ int deviceExists(btDeviceTable_t devices, bdaddr_t bdaddr)
     return 0;
 }
 
-int deviceAdd(btDeviceTable_t devices, bdaddr_t bdaddr)
+int deviceAdd(btDeviceTable_t devices, bdaddr_t bdaddr, char * hname)
 {
     int x;
     for(x = 0; x < BT_MAX_DISCOVERY_DEVICES; x++) {
@@ -179,7 +200,10 @@ int deviceAdd(btDeviceTable_t devices, bdaddr_t bdaddr)
             memset(devices[x]->name, 0, 19);
             ba2str(&bdaddr, devices[x]->name);
 
-            writelog(LOG_DEFAULT, "Added device %s", devices[x]->name);
+            devices[x]->hname = (char *) malloc(249 * sizeof(char));
+            strcpy(devices[x]->hname, hname);
+
+            writelog(LOG_DEFAULT, "Found device %s: %s", devices[x]->name, devices[x]->hname);
 
             devices[x]->addr = bdaddr;
             return 1;
@@ -189,12 +213,23 @@ int deviceAdd(btDeviceTable_t devices, bdaddr_t bdaddr)
     return 0;
 }
 
+void deviceList(btDeviceTable_t devices)
+{
+    int x;
+    for(x = 0; x < BT_MAX_DISCOVERY_DEVICES; x++) {
+        if(devices[x] != NULL) {
+            writelog(LOG_DEFAULT, "\t[%d] %s  BD Address: %s", x+1, devices[x]->hname, devices[x]->name);
+        }
+    }
+}
+
 void cleanBTHost(btDeviceTable_t devices)
 {
     int x;
     for(x = 0; x < BT_MAX_DISCOVERY_DEVICES; x++) {
         if(devices[x] != NULL) {
             free(devices[x]->name);
+            free(devices[x]->hname);
         }
     }
 }
