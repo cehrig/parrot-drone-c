@@ -36,6 +36,8 @@ typedef struct _btParam
 typedef btDevice_t ** btDeviceTable_t;
 
 void initBTDriver();
+void startBTHost();
+void stopBTHost();
 static int getBTDevices(btParam_t, btDeviceTable_t);
 int deviceAdd(btDeviceTable_t, bdaddr_t);
 

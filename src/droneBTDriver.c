@@ -9,13 +9,14 @@
 #include "droneLog.h"
 #include "droneBTDriver.h"
 
+btParam_t bte_params;
+
 /**
  * Cross reference: http://git.kernel.org/cgit/bluetooth/bluez.git/tree/tools/hcitool.c?id=7e018c6e02e39faa3b12f144390be4942bd316e6
  */
 
 void initBTDriver()
 {
-    btParam_t bte_params;
     bte_params.own_type = 0x00;
     bte_params.scan_type = 0x01;
     bte_params.filter_type = 0x00;
@@ -23,6 +24,26 @@ void initBTDriver()
     bte_params.window = htobs(0x0010);
     bte_params.to = 2000;
 
+    startBTHost();
+
+    btDevice_t * devices[BT_MAX_DISCOVERY_DEVICES];
+    memset(devices, 0, BT_MAX_DISCOVERY_DEVICES * sizeof(btDevice_t *));
+
+    bte_params.err = getBTDevices(
+            bte_params,
+            devices
+    );
+
+    if (bte_params.err < 0) {
+        writelog(LOG_ERROR, "Could not receive advertising devices - %s", strerror(errno));
+        exit(303);
+    }
+
+    stopBTHost();
+}
+
+void startBTHost()
+{
     bte_params.dev_id = hci_devid(BT_DEVICEADDR);
 
     bte_params.dd = hci_open_dev(bte_params.dev_id);
@@ -57,20 +78,10 @@ void initBTDriver()
         writelog(LOG_ERROR, "Enable scan failed - %s", strerror(errno));
         exit(302);
     }
+}
 
-    btDevice_t * devices[BT_MAX_DISCOVERY_DEVICES];
-    memset(devices, 0, BT_MAX_DISCOVERY_DEVICES * sizeof(btDevice_t *));
-
-    bte_params.err = getBTDevices(
-            bte_params,
-            devices
-    );
-
-    if (bte_params.err < 0) {
-        writelog(LOG_ERROR, "Could not receive advertising devices - %s", strerror(errno));
-        exit(303);
-    }
-
+void stopBTHost()
+{
     bte_params.err = hci_le_set_scan_enable(bte_params.dd, 0x00, 0x00, 2500);
     if (bte_params.err < 0) {
         writelog(LOG_ERROR, "Disable scan failed - %s", strerror(errno));
