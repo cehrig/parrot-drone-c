@@ -38,7 +38,8 @@ typedef btDevice_t ** btDeviceTable_t;
 void initBTDriver();
 void startBTHost();
 void stopBTHost();
-static int getBTDevices(btParam_t, btDeviceTable_t);
+void cleanBTHost(btDeviceTable_t);
+static int getBTDevices(btDeviceTable_t);
 int deviceAdd(btDeviceTable_t, bdaddr_t);
 
 #endif //DRONE_CONNECT_DRONEBTADAPTER_H

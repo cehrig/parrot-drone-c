@@ -24,22 +24,17 @@ void initBTDriver()
     bte_params.window = htobs(0x0010);
     bte_params.to = 2000;
 
-    startBTHost();
-
     btDevice_t * devices[BT_MAX_DISCOVERY_DEVICES];
     memset(devices, 0, BT_MAX_DISCOVERY_DEVICES * sizeof(btDevice_t *));
 
-    bte_params.err = getBTDevices(
-            bte_params,
-            devices
-    );
+    bte_params.err = getBTDevices(devices);
 
     if (bte_params.err < 0) {
         writelog(LOG_ERROR, "Could not receive advertising devices - %s", strerror(errno));
         exit(303);
     }
 
-    stopBTHost();
+    cleanBTHost(devices);
 }
 
 void startBTHost()
@@ -91,8 +86,10 @@ void stopBTHost()
     hci_close_dev(bte_params.dd);
 }
 
-static int getBTDevices(btParam_t bte_params, btDeviceTable_t devices)
+static int getBTDevices(btDeviceTable_t devices)
 {
+    startBTHost();
+
     unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
     struct hci_filter nf, of;
     socklen_t olen;
@@ -149,6 +146,8 @@ static int getBTDevices(btParam_t bte_params, btDeviceTable_t devices)
     done:
     setsockopt(bte_params.dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
 
+    stopBTHost();
+
     if (len < 0)
         return -1;
 
@@ -188,4 +187,14 @@ int deviceAdd(btDeviceTable_t devices, bdaddr_t bdaddr)
     }
 
     return 0;
+}
+
+void cleanBTHost(btDeviceTable_t devices)
+{
+    int x;
+    for(x = 0; x < BT_MAX_DISCOVERY_DEVICES; x++) {
+        if(devices[x] != NULL) {
+            free(devices[x]->name);
+        }
+    }
 }
