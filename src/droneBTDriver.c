@@ -209,28 +209,64 @@ void connectBTDevice(btParam_t * bte_params, btDevice_t * device)
 {
     uint16_t handle;
 
-    if(hci_le_create_conn(
+    bte_params->err = hci_le_create_conn(
             bte_params->dd,
             htobs(0x0004),
             htobs(0x0004),
             0x00,
-            LE_PUBLIC_ADDRESS,
+            LE_RANDOM_ADDRESS,
             device->addr,
             LE_PUBLIC_ADDRESS,
             htobs(0x000F),
             htobs(0x000F),
             htobs(0x0000),
             htobs(0x0C80),
-            htobs(0x0001),
-            htobs(0x0001),
+            htobs(0x0000),
+            htobs(0x0000),
             &handle,
             25000
-    ) < 0) {
+    );
+
+    if(bte_params->err < 0) {
         writelog(LOG_ERROR, "Can not connect: %s", strerror(errno));
     }
 
     uint8_t reason;
-    bte_params->err = hci_disconnect(bte_params->dd, handle, reason, 5000);
+    //bte_params->err = hci_disconnect(bte_params->dd, handle, reason, 5000);
+
+    writelog(LOG_DEBUG, "Status: %d -> Link established! Gathering remote device information", bte_params->err);
+
+    uint8_t features[8];
+    struct hci_version version;
+
+    if (hci_read_remote_version(bte_params->dd, handle, &version, 20000) == 0) {
+        char *ver = lmp_vertostr(version.lmp_ver);
+        printf("\tLMP Version: %s (0x%x) LMP Subversion: 0x%x\n"
+        "\tManufacturer: %s (%d)\n",
+               ver ? ver : "n/a",
+                version.lmp_ver,
+                version.lmp_subver,
+                bt_compidtostr(version.manufacturer),
+                version.manufacturer);
+        if (ver)
+            bt_free(ver);
+        }
+
+    memset(features, 0, sizeof(features));
+    hci_le_read_remote_features(bte_params->dd, handle, features, 20000);
+
+    printf("\tFeatures: 0x%2.2x 0x%2.2x 0x%2.2x 0x%2.2x "
+                           "0x%2.2x 0x%2.2x 0x%2.2x 0x%2.2x\n",
+            features[0], features[1], features[2], features[3],
+            features[4], features[5], features[6], features[7]);
+
+    usleep(10000);
+    hci_disconnect(bte_params->dd, handle, HCI_OE_USER_ENDED_CONNECTION, 10000);
+
+    while(1)
+    {
+
+    }
 
 }
 
