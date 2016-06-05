@@ -17,81 +17,126 @@ btParam_t bte_params;
 
 void initBTDriver()
 {
-    bte_params.own_type = 0x00;
-    bte_params.scan_type = 0x01;
-    bte_params.filter_type = 0x00;
-    bte_params.interval = htobs(0x0010);
-    bte_params.window = htobs(0x0010);
-    bte_params.to = 2000;
-
     btDevice_t * devices[BT_MAX_DISCOVERY_DEVICES];
     memset(devices, 0, BT_MAX_DISCOVERY_DEVICES * sizeof(btDevice_t *));
 
-    bte_params.err = getBTDevices(devices);
+    /**
+     * Scan BTE Devices
+     */
+    btParam_t * bte_params = startBTHost();
+    startBTScanMode(bte_params);
 
-    if (bte_params.err < 0) {
+    if (getBTDevices(bte_params, devices) < 0) {
         writelog(LOG_ERROR, "Could not receive advertising devices - %s", strerror(errno));
         exit(303);
     }
 
-    selectBTDevice(devices);
+    stopBTScanMode(bte_params);
+    stopBTHost(bte_params);
+
+    /**
+     * Connect to BTE Device
+     */
+    btParam_t * sbte_params = startBTHost();
+    btDevice_t * device = selectBTDevice(devices);
+    connectBTDevice(sbte_params, device);
+    stopBTHost(sbte_params);
 
     cleanBTHost(devices);
 }
 
-void startBTHost()
+void resetBTHost()
 {
-    bte_params.dev_id = hci_devid(BT_DEVICEADDR);
+    int ctl;
 
-    bte_params.dd = hci_open_dev(bte_params.dev_id);
-    if (bte_params.dd < 0) {
+    if ((ctl = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI)) < 0) {
+        perror("Can't open HCI socket.");
+        exit(1);
+    }
+
+    if(ioctl(ctl, HCIDEVDOWN, BT_DEVICEID) < 0) {
+        writelog(LOG_DEFAULT, "Can not down device - %s", strerror(errno));
+    }
+
+    if(ioctl(ctl, HCIDEVUP, BT_DEVICEID) < 0) {
+        if (errno == EALREADY)
+            return;
+        writelog(LOG_DEFAULT, "Can not up device - %s", strerror(errno));
+    }
+    close(ctl);
+
+    writelog(LOG_DEBUG, "Device %d reset done", hci_get_route(NULL));
+}
+
+btParam_t * startBTHost()
+{
+    resetBTHost();
+
+    btParam_t * bte_params = (btParam_t *) malloc(sizeof(btParam_t));
+    bte_params->own_type = 0x00;
+    bte_params->scan_type = 0x01;
+    bte_params->filter_type = 0x00;
+    bte_params->interval = htobs(0x0010);
+    bte_params->window = htobs(0x0010);
+    bte_params->to = 2000;
+    bte_params->dev_id = BT_DEVICEID;
+
+    bte_params->dd = hci_open_dev(bte_params->dev_id);
+    if (bte_params->dd < 0) {
         writelog(LOG_ERROR, "Could not open device");
         exit(300);
     }
 
-    bte_params.err = hci_le_set_scan_parameters(
-            bte_params.dd,
-            bte_params.scan_type,
-            bte_params.interval,
-            bte_params.window,
-            bte_params.own_type,
+    return bte_params;
+}
+
+void stopBTHost(btParam_t * bte_params)
+{
+    writelog(LOG_DEFAULT, "CLOSE: %d", hci_close_dev(bte_params->dd));
+    free(bte_params);
+}
+
+void startBTScanMode(btParam_t * bte_params)
+{
+    bte_params->err = hci_le_set_scan_parameters(
+            bte_params->dd,
+            bte_params->scan_type,
+            bte_params->interval,
+            bte_params->window,
+            bte_params->own_type,
             0x00,
             2500
     );
 
-    if (bte_params.err < 0) {
+    if (bte_params->err < 0) {
         writelog(LOG_ERROR, "Could not open device - %s", strerror(errno));
         exit(301);
     }
 
-    bte_params.err = hci_le_set_scan_enable(
-            bte_params.dd,
+    bte_params->err = hci_le_set_scan_enable(
+            bte_params->dd,
             0x01,
             0x00,
-            bte_params.to
+            bte_params->to
     );
 
-    if (bte_params.err < 0) {
+    if (bte_params->err < 0) {
         writelog(LOG_ERROR, "Enable scan failed - %s", strerror(errno));
         exit(302);
     }
 }
 
-void stopBTHost()
+void stopBTScanMode(btParam_t * bte_params)
 {
-    bte_params.err = hci_le_set_scan_enable(bte_params.dd, 0x00, 0x00, 2500);
-    if (bte_params.err < 0) {
+    bte_params->err = hci_le_set_scan_enable(bte_params->dd, 0x00, 0x00, 2500);
+    if (bte_params->err < 0) {
         writelog(LOG_ERROR, "Disable scan failed - %s", strerror(errno));
         exit(304);
     }
-
-    hci_close_dev(bte_params.dd);
 }
 
-static int getBTDevices(btDeviceTable_t devices)
+static int getBTDevices(btParam_t * bte_params, btDeviceTable_t devices)
 {
-    startBTHost();
-
     unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
     struct hci_filter nf, of;
     socklen_t olen;
@@ -99,7 +144,7 @@ static int getBTDevices(btDeviceTable_t devices)
     int num, len;
 
     olen = sizeof(of);
-    if (getsockopt(bte_params.dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
+    if (getsockopt(bte_params->dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
         writelog(LOG_ERROR, "Could not get socket options - %s", strerror(errno));
         return -1;
     }
@@ -108,7 +153,7 @@ static int getBTDevices(btDeviceTable_t devices)
     hci_filter_set_ptype(HCI_EVENT_PKT, &nf);
     hci_filter_set_event(EVT_LE_META_EVENT, &nf);
 
-    if (setsockopt(bte_params.dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
+    if (setsockopt(bte_params->dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
         writelog(LOG_ERROR, "Could not set socket options - %s", strerror(errno));
         return -1;
     }
@@ -122,7 +167,7 @@ static int getBTDevices(btDeviceTable_t devices)
         char hname[248];
         memset(hname, 0, 248);
 
-        while ((len = read(bte_params.dd, buf, sizeof(buf))) < 0) {
+        while ((len = read(bte_params->dd, buf, sizeof(buf))) < 0) {
             if (errno == EAGAIN || errno == EINTR)
                 continue;
             goto done;
@@ -137,7 +182,7 @@ static int getBTDevices(btDeviceTable_t devices)
         info = (le_advertising_info *) (meta->data + 1);
         ba2str(&info->bdaddr, addr);
 
-        if (hci_read_remote_name(bte_params.dd, &info->bdaddr, sizeof(hname),
+        if (hci_read_remote_name(bte_params->dd, &info->bdaddr, sizeof(hname),
                                  hname, 0) < 0)
             strcpy(hname, "[unknown]");
 
@@ -152,9 +197,7 @@ static int getBTDevices(btDeviceTable_t devices)
     }
 
     done:
-    setsockopt(bte_params.dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
-
-    stopBTHost();
+    setsockopt(bte_params->dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
 
     if (len < 0)
         return -1;
@@ -162,7 +205,36 @@ static int getBTDevices(btDeviceTable_t devices)
     return 0;
 }
 
-void selectBTDevice(btDeviceTable_t devices)
+void connectBTDevice(btParam_t * bte_params, btDevice_t * device)
+{
+    uint16_t handle;
+
+    if(hci_le_create_conn(
+            bte_params->dd,
+            htobs(0x0004),
+            htobs(0x0004),
+            0x00,
+            LE_PUBLIC_ADDRESS,
+            device->addr,
+            LE_PUBLIC_ADDRESS,
+            htobs(0x000F),
+            htobs(0x000F),
+            htobs(0x0000),
+            htobs(0x0C80),
+            htobs(0x0001),
+            htobs(0x0001),
+            &handle,
+            25000
+    ) < 0) {
+        writelog(LOG_ERROR, "Can not connect: %s", strerror(errno));
+    }
+
+    uint8_t reason;
+    bte_params->err = hci_disconnect(bte_params->dd, handle, reason, 5000);
+
+}
+
+btDevice_t * selectBTDevice(btDeviceTable_t devices)
 {
     char deviceID[4];
     int ideviceId;
@@ -173,6 +245,8 @@ void selectBTDevice(btDeviceTable_t devices)
     memset(deviceID, 0, 4);
     scanf("%s", deviceID);
     ideviceId = strtol(deviceID, NULL, 10)-1;
+
+    return devices[ideviceId];
 }
 
 int deviceExists(btDeviceTable_t devices, bdaddr_t bdaddr)
