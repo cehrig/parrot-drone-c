@@ -46,7 +46,8 @@ void cleanBTHost(btDeviceTable_t);
 
 static int getBTDevices(btParam_t *, btDeviceTable_t);
 btDevice_t * selectBTDevice(btDeviceTable_t);
-void connectBTDevice(btParam_t *, btDevice_t *);
+uint16_t connectBTDevice(btParam_t *, btDevice_t *);
+void disconnectBTDevice(btParam_t *, uint16_t);
 
 int deviceAdd(btDeviceTable_t, bdaddr_t, char *);
 void deviceList(btDeviceTable_t);
