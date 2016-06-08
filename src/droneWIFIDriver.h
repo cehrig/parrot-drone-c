@@ -6,5 +6,6 @@
 #define PARROT_DRONE_C_DRONEWIFIDRIVER_H
 
 void initWIFIDriver();
+int select_device();
 
 #endif //PARROT_DRONE_C_DRONEWIFIDRIVER_H

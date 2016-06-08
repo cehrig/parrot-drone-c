@@ -32,6 +32,7 @@ typedef struct _droneDevice
 extern droneDevice_t devices;
 
 droneDevice_t * initDeviceStruct();
+void freeDeviceStruct(droneDevice_t *);
 void setConnectionType(CONNECTION_TYPE);
 CONNECTION_TYPE getConnectionType();
 

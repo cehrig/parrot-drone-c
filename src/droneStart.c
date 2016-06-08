@@ -40,6 +40,7 @@ int main(int argc, char **argv)
     }
 
     device->initDriver();
+    freeDeviceStruct(device);
 
     return 0;
 }

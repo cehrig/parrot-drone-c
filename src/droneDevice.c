@@ -16,6 +16,11 @@ droneDevice_t * initDeviceStruct()
     return device;
 }
 
+void freeDeviceStruct(droneDevice_t * device)
+{
+    free(device);
+}
+
 void setConnectionType(CONNECTION_TYPE type)
 {
     device->type = type;
