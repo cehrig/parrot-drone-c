@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <strings.h>
+#include <errno.h>
 #include "droneLog.h"
 #include "droneDevice.h"
 
@@ -38,7 +40,6 @@ int main(int argc, char **argv)
     }
 
     device->initDriver();
-
 
     return 0;
 }

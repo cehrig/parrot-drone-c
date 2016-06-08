@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include "droneDevice.h"
 #include "droneBTDriver.h"
+#include "droneWIFIDriver.h"
 
 droneDevice_t * device;
 
@@ -24,6 +25,10 @@ void setConnectionType(CONNECTION_TYPE type)
     {
         case BTE:
             device->initDriver = initBTDriver;
+            break;
+        case WIFI:
+            device->initDriver = initWIFIDriver;
+            break;
     }
 }
 
